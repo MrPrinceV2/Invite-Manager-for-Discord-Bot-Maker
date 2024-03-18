@@ -1,0 +1,281 @@
+// Ensure the event runs only once
+if (!globalVars("inviteInfoRanAlready")) {
+    // Mark event as executed
+    Actions.storeValue(true, 3, "inviteInfoRanAlready", cache);
+
+    //inviteinfo
+    var inviteCode = slashParams("data");
+    var inviteData = Actions.inviteData;
+    var inviteDataList;
+    var guildDatabase = Actions.fetchDatabase();
+    var invitePData = Actions.invitePData["inviterData"];
+    var attempToFetch;
+
+    var completed = false;
+    var completedFetch = false;
+
+    if (inviteCode != null) {
+        if (inviteCode.includes("https://discord.gg/")) {
+            inviteCode = inviteCode.split("https://discord.gg/")[1].replace(/[^a-zA-Z0-9]/g, "");
+        }
+
+        attempToFetch = guildDatabase[msg.guild.id].get(inviteCode);
+        inviteDataList = inviteData[inviteCode];
+        if (attempToFetch != null || inviteDataList != null) {
+            if (attempToFetch == null) {
+                attempToFetch = {
+                    "uses": inviteDataList["uses"],
+                    "inviter": {
+                        "id": inviteDataList["inviter"]
+                    },
+                    "createdAt": inviteDataList["codeCreated"]
+                };
+            }
+
+            if (inviteDataList == null) {
+                inviteDataList = [];
+                completed = true;
+            } else {
+                inviteDataList = inviteDataList["playersTracked"];
+            }
+            main();
+        } else {
+            errorMessage("The code seems to be invalid!\nPlease check the code and try again!")
+        }
+    } else {
+        errorMessage("Please supply an invite link or code!")
+    }
+
+    async function main() {
+        var multiPage = false;
+        var pages = [];
+        var pageText = [];
+        var pageIndex = 0;
+        var skipStep = false;
+
+        var playerUsed = "None";
+        var avatarURL = "https://via.placeholder.com/150";
+        var codeCreator = "Not found";
+
+
+        if (attempToFetch["inviter"]["id"] == "0") {
+            skipStep = true;
+        }
+
+        inviteDataList.reverse();
+
+        if (inviteDataList.length > 5) {
+            multiPage = true;
+
+            while (inviteDataList.length) {
+                pages.push(inviteDataList.splice(0, 5))
+            }
+
+            pageText[0] = "";
+
+            for (i = 0; i < pages[0].length; i++) {
+                var userID = pages[0][i];
+                var clientFetch = await client.users.fetch(userID)
+                if (!skipStep && invitePData[msg.guild.id][attempToFetch["inviter"]["id"]]["invites"].find(inv => inv.id == userID && inv.invalidCause == "User had left the server") != null) {
+                    pageText[0] += `${clientFetch}\n(${clientFetch.tag})\n(Left server)\n\n`
+                } else {
+                    pageText[0] += `${clientFetch}\n(${clientFetch.tag})\n\n`
+                }
+
+                if (pages[0].length - 1 == i) {
+                    completed = true;
+                }
+            }
+        } else if (inviteDataList.length > 0) {
+            playerUsed = "";
+
+            for (i = 0; i < inviteDataList.length; i++) {
+                var userID = inviteDataList[i];
+                var clientFetch = await client.users.fetch(userID)
+                if (!skipStep && invitePData[msg.guild.id][attempToFetch["inviter"]["id"]]["invites"].find(inv => inv.id == userID && inv.invalidCause == "User had left the server") != null) {
+                    playerUsed += `${clientFetch}\n(${clientFetch.tag})\n(Left server)\n\n`
+                } else {
+                    playerUsed += `${clientFetch}\n(${clientFetch.tag})\n\n`
+                }
+
+                if (inviteDataList.length - 1 == i) {
+                    completed = true;
+                }
+            }
+        }
+
+        var newDate = attempToFetch["createdAt"].toLocaleString("en-US", {
+            timeZone: "UTC"
+        });
+
+        if (attempToFetch["inviter"]["id"] != 0) {
+            if (!skipStep && attempToFetch["url"] != null) {
+                avatarURL = attempToFetch["inviter"].avatarURL();
+                codeCreator = `${attempToFetch["inviter"]}\n(${attempToFetch["inviter"].tag})`
+            } else {
+                await client.users.fetch(attempToFetch["inviter"]["id"]).then(cliUser => {
+                    avatarURL = cliUser.avatarURL()
+                    codeCreator = `${cliUser}\n(${cliUser.tag})`
+                }).catch();
+            }
+        }
+
+        until(_ => completed == true).then(() => {
+            completed == false;
+            if (!multiPage) {
+                msg.channel.send({
+                    embed: {
+                        color: 0x0099ff,
+                        title: `Invite Information (${inviteCode})`,
+                        fields: [{
+                                name: `👤 Code creator`,
+                                value: codeCreator,
+                                inline: true
+                            },
+                            {
+                                name: '📅 Created at',
+                                value: (newDate != 0) ? newDate : "Not found",
+                                inline: true
+                            },
+                            {
+                                name: '🖱️ Uses',
+                                value: attempToFetch["uses"],
+                                inline: true
+                            },
+                            {
+                                name: '📒 Players Used Invite',
+                                value: playerUsed,
+                                inline: true
+                            }
+                        ],
+                        thumbnail: {
+                            url: avatarURL,
+                        },
+                        timestamp: new Date(),
+                    }
+                })
+            } else {
+                msg.channel.send({
+                    embed: {
+                        color: 0x0099ff,
+                        title: `Invite Information (${inviteCode})`,
+                        fields: [{
+                                name: `👤 Code creator`,
+                                value: codeCreator,
+                                inline: true
+                            },
+                            {
+                                name: '📅 Created at',
+                                value: (newDate != 0) ? newDate : "Not found",
+                                inline: true
+                            },
+                            {
+                                name: '🖱️ Uses',
+                                value: attempToFetch["uses"],
+                                inline: true
+                            },
+                            {
+                                name: '📒 Players Used Invite',
+                                value: pageText[0],
+                                inline: true
+                            },
+                            {
+                                name: '📃 Page',
+                                value: `1/${pages.length}`,
+                                inline: true
+                            }
+                        ],
+                        thumbnail: {
+                            url: avatarURL,
+                        },
+                        timestamp: new Date(),
+                        footer: {
+                            text: "Click the left and right arrow to browse the list! || Valid for 240 seconds"
+                        }
+                    }
+                }).then(messageSent => {
+                    messageSent.react("⬅️").then(() => {
+                        messageSent.react("➡️")
+                    }).then(() => {
+                        const collector = messageSent.createReactionCollector((reaction, user) => ['⬅️', '➡️'].includes(reaction.emoji.name) && user.id == msg.author.id, {
+                            time: 240000
+                        });
+                        collector.on('collect', async (reaction) => {
+                            reaction.users.remove(msg.author.id);
+                            if (reaction.emoji.name === '⬅️') {
+                                if (pageIndex > 0) {
+                                    pageIndex -= 1;
+                                    messageSent.embeds[0].fields[3]["value"] = pageText[pageIndex];
+                                    messageSent.embeds[0].fields[4]["value"] = `${pageIndex + 1}/${pages.length}`;
+                                    messageSent.edit(messageSent.embeds[0]);
+                                }
+                            } else {
+                                if (pageIndex < pages.length - 1) {
+                                    pageIndex += 1;
+                                    if (pageText[pageIndex] == null) {
+                                        var pagesLength = pages[pageIndex].length;
+                                        for (i = 0; i < pagesLength; i++) {
+                                            var userID = pages[pageIndex][i];
+                                            pageText[pageIndex] = "";
+                                            await client.users.fetch(userID).then(clientFetch => {
+                                                if (!skipStep && invitePData[msg.guild.id][attempToFetch["inviter"]["id"]]["invites"].find(inv => inv.id == userID && inv.invalidCause == "User had left the server") != null) {
+                                                    pageText[pageIndex] += `${clientFetch}\n(${clientFetch.tag}) (Left server)\n\n`
+                                                } else {
+                                                    pageText[pageIndex] += `${clientFetch}\n(${clientFetch.tag})\n\n`
+                                                }
+                                            }).catch();
+
+                                            if (pagesLength - 1 == i) {
+                                                completedFetch = true;
+                                            }
+                                        }
+                                    } else {
+                                        completedFetch = true;
+                                    }
+
+
+                                    until(_ => completedFetch == true).then(() => {
+                                        completedFetch = false;
+                                        messageSent.embeds[0].fields[3]["value"] = pageText[pageIndex];
+                                        messageSent.embeds[0].fields[4]["value"] = `${pageIndex + 1}/${pages.length}`
+                                        messageSent.edit(messageSent.embeds[0]);
+                                    }).catch();
+                                }
+                            }
+                        });
+                        collector.on('end', collected => {
+                            messageSent.embeds[0].footer.text = "Embed expired; reactions no longer work";
+                            messageSent.edit(messageSent.embeds[0]);
+                        });
+
+
+                    }).catch();
+                }).catch();
+            }
+        }).catch();
+    }
+
+    function errorMessage(error) {
+
+        let errorTemplate = {
+            color: 0xFF0000,
+            title: `Invite Information`,
+            description: error,
+            timestamp: new Date(),
+        }
+
+        msg.channel.send({
+            embed: errorTemplate
+        });
+    }
+
+    function until(conditionFunction) {
+
+        const poll = resolve => {
+            if (conditionFunction()) resolve();
+            else setTimeout(_ => poll(resolve), 400);
+        }
+
+        return new Promise(poll);
+    }
+}

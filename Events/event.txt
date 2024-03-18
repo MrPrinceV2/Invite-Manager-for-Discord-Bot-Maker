@@ -1,0 +1,136 @@
+// Ensure the event runs only once
+if (!globalVars("inviteManagerRanAlready")) {
+    // Import necessary modules
+    const Discord = require("discord.js");
+    const fs = require('fs');
+    const request = require('request');
+    
+    // Set up initial variables
+    let delay = 1000;
+    let inviteDatabase = {};
+    let dmOwnerOnMissingPermission = false;
+
+    // Mark event as executed
+    Actions.storeValue(true, 3, "inviteManagerRanAlready", cache);
+
+    // Check for required intents
+    const requiredIntents = ["GUILD_MEMBERS", "GUILD_INVITES"];
+    const botIntents = new Discord.Intents(DBM.Bot.intents()).toArray();
+    requiredIntents.forEach(intent => {
+        if (!botIntents.includes(intent)) {
+            console.log(`[Invite Manager] Missing required intent: ${intent}`);
+        }
+    });
+
+    // Define Actions
+    Actions.inviteModifyData = function(userID, guildID, valueChange, invalidReal) {
+        // Implementation goes here
+    };
+
+    Actions.inviteGet = function(userID, guildID, invalidReal) {
+        // Implementation goes here
+    };
+
+    Actions.fetchDatabase = function() {
+        return inviteDatabase;
+    };
+
+    // Fetch guild invites on bot startup
+    client.guilds.cache.forEach(g => {
+        g.fetchInvites().then(guildInvites => {
+            inviteDatabase[g.id] = guildInvites;
+        }).catch(error => {
+            if (dmOwnerOnMissingPermission) {
+                setTimeout(function() {
+                    g.owner.send("Hello!\n\nThis bot requires the `MANAGE_GUILD` permission to allow for the invite manager section of the bot to work.\n\nIf you do not turn on the permission, the bot cannot track incoming invites!");
+                }, delay);
+                delay += 1000;
+            }
+        });
+    });
+
+    // Load data from files
+    let inviteSettings, inviteData, invitePData, inviterData, invitedData;
+    if (!globalVars("inviteManagerDataMoved")) {
+        Files.saveGlobalVariable("inviteManagerDataMoved", true);
+        if (!fs.existsSync(`./data/inviteManager`)) {
+            fs.mkdirSync(`./data/inviteManager`);
+        }
+        ["inviteManagerSettings", "inviteManagerInviteData", "inviteManagerData"].forEach(fileName => {
+            if (fs.existsSync(`./data/${fileName}.json`)) {
+                fs.renameSync(`./data/${fileName}.json`, `./data/inviteManager/${fileName}.json`);
+            }
+        });
+    }
+    checkReadFile("inviteManagerData", { "inviterData": {}, "invitedData": {} }, "invitePData").then(() => {
+        invitePData = Actions.invitePData;
+        inviterData = Actions.invitePData["inviterData"];
+        invitedData = Actions.invitePData["invitedData"];
+    }).catch();
+    checkReadFile("inviteManagerSettings", {}, "inviteSettings").then(() => {
+        inviteSettings = Actions.inviteSettings;
+    }).catch();
+    checkReadFile("inviteManagerInviteData", {}, "inviteData").then(async () => {
+        // Implementation goes here
+    }).catch();
+
+    // Event listeners
+    client.on('guildMemberAdd', (member) => {
+        // Implementation goes here
+    });
+
+    client.on('guildMemberRemove', async (member) => {
+        // Implementation goes here
+    });
+
+    client.on('guildCreate', (guild) => {
+        // Implementation goes here
+    });
+
+    client.on('inviteCreate', (invite) => {
+        // Implementation goes here
+    });
+
+    // Utility functions
+    function checkReadFile(name, format, dataname) {
+        return new Promise(function(resolve) {
+            if (fs.existsSync(`./data/inviteManager/${name}.json`)) {
+                fs.readFile(`./data/inviteManager/${name}.json`, function read(err, data) {
+                    if (err) {
+                        throw err;
+                    }
+                    data = JSON.parse(data)
+
+                    Actions[dataname] = data;
+
+                    resolve(data);
+                });
+            } else {
+                Actions[dataname] = format;
+                writeToData(name, format, dataname);
+                resolve(format);
+            }
+        })
+    }
+
+    function writeToData(name, data, dataname) {
+        fs.writeFile(`./data/inviteManager/${name}.json`, JSON.stringify(data), function(err) {
+            if (err) {
+                return console.log(err);
+            }
+            Actions[dataname] = data;
+        });
+    }
+
+    function checkProperty(item, check) {
+        try {
+            if (item[check] == null) {
+                return false;
+            } else {
+                return true;
+            }
+        } catch (error) {
+            return false;
+        }
+    }
+}

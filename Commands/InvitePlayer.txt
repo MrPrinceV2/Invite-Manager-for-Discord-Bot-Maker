@@ -1,0 +1,278 @@
+// Ensure the event runs only once
+if (!globalVars("invitePlayerRanAlready")) {
+    // Mark event as executed
+    Actions.storeValue(true, 3, "invitePlayerRanAlready", cache);
+
+    // invite player
+    var messageParam = slashParams("user");
+    var invitePData = Actions.invitePData;
+    var guildID = msg.guild.id;
+
+    var userSelected = null;
+    if (messageParam != null) {
+        if (!isNaN(messageParam)) {
+            msg.guild.members.fetch(messageParam).then(userFetched => {
+                userSelected = userFetched.user;
+            }).catch(() => {
+                userSelected = msg.author;
+            });
+        } else if (msg.mentions.users.first() != null) {
+            userSelected = msg.mentions.users.first();
+        } else {
+            var fetchTest = client.users.cache.find(user => user.username == messageParam);
+
+            if (fetchTest != null) {
+                userSelected = fetchTest;
+            } else {
+                userSelected = msg.author;
+            }
+        }
+    } else {
+        userSelected = msg.author;
+    }
+
+    until(_ => userSelected != null).then(() => {
+        main();
+    });
+
+    async function main() {
+        if (userSelected != null) {
+            var invitedData = invitePData['invitedData'];
+            var inviterData = invitePData['inviterData'];
+
+            var invitedBy = "None";
+            var invited = "None";
+            var inviteStats = {
+                "real": 0,
+                "invalid": 0
+            };
+
+            if (invitedData.hasOwnProperty(guildID) && invitedData[guildID].hasOwnProperty(userSelected.id) && invitedData[guildID][userSelected.id].length != 0) {
+                invitedBy = invitedData[guildID][userSelected.id];
+            }
+
+            if (inviterData.hasOwnProperty(guildID) && inviterData[guildID].hasOwnProperty(userSelected.id)) {
+                invited = inviterData[guildID][userSelected.id]["invites"];
+                inviteStats = inviterData[guildID][userSelected.id]["data"];
+            }
+
+            if (typeof invitedBy != "string") {
+                var invitedByUsers = [];
+
+                if (invitedBy.length >= 3) {
+                    invitedByUsers.push(...[invitedBy[invitedBy.length - 1], invitedBy[invitedBy.length - 2], invitedBy[invitedBy.length - 3]]);
+                } else {
+                    invitedByUsers.push(...invitedBy);
+                }
+
+                invitedBy = "";
+
+                for (i = 0; i < invitedByUsers.length; i++) {
+                    var fetchedMember = await client.users.fetch(invitedByUsers[i]);
+                    var fetchedInviter = inviterData[guildID][fetchedMember.id]["invites"].find(inviteMem => inviteMem.id == userSelected.id);
+
+                    invitedBy += `${fetchedMember} (${fetchedMember.tag})\n**Code:** ${fetchedInviter["codeUsed"]}`;
+
+                    if (!fetchedInviter["valid"]) {
+                        invitedBy += ` **(Invalid)**\n**(${fetchedInviter["invalidCause"]})**`;
+                    }
+
+                    invitedBy += "\n\n";
+                }
+            }
+
+            if (typeof invited != "string") {
+                var multiPage = false;
+                var pages = [];
+                var pageText = [];
+                var pageIndex = 0;
+
+                var invitedByUsers = [];
+
+                if (invited.length >= 10) {
+                    for (i = 0; i < 10; i++) {
+                        invitedByUsers.push(invited[i]);
+                    }
+                } else {
+                    invited.forEach(invitedObject => {
+                        invitedByUsers.push(invitedObject);
+                    });
+                }
+
+                if (invitedByUsers.length > 5) {
+                    pageText[0] = "";
+                    multiPage = true;
+
+                    while (invitedByUsers.length) {
+                        pages.push(invitedByUsers.splice(0, 5));
+                    }
+
+                    for (i = 0; i < pages[0].length; i++) {
+                        var fetchedMember = await client.users.fetch(pages[0][i]["id"]);
+                        pageText[0] += `${fetchedMember} (${fetchedMember.tag})\n**Code:** ${pages[0][i]["codeUsed"]}`;
+
+                        if (!pages[0][i]["valid"]) {
+                            pageText[0] += ` **(Invalid)**\n**(${pages[0][i]["invalidCause"]})**`;
+                        }
+
+                        pageText[0] += "\n\n";
+                    }
+                } else {
+                    invited = "";
+                    for (i = 0; i < invitedByUsers.length; i++) {
+                        var fetchedMember = await client.users.fetch(invitedByUsers[i]["id"]);
+
+                        invited += `${fetchedMember} (${fetchedMember.tag})\n**Code:** ${invitedByUsers[i]["codeUsed"]}`;
+
+                        if (!invitedByUsers[i]["valid"]) {
+                            invited += ` **(Invalid)**\n**(${invitedByUsers[i]["invalidCause"]})**`;
+                        }
+
+                        invited += "\n\n";
+                    }
+                }
+            }
+
+            if (!multiPage) {
+                msg.channel.send({
+                    embed: {
+                        color: 0x0099ff,
+                        title: `${userSelected.username}'s Invite Profile`,
+                        fields: [{
+                                name: '✅ Real Invites',
+                                value: `${inviteStats["real"]}`,
+                                inline: true
+                            },
+                            {
+                                name: '❎ Invalid Invites',
+                                value: `${inviteStats["invalid"]}`,
+                                inline: true
+                            },
+                            {
+                                name: '👤 Invited by',
+                                value: invitedBy,
+                                inline: true,
+                            },
+                            {
+                                name: '📒 Invited',
+                                value: invited,
+                                inline: false,
+                            }
+                        ],
+                        thumbnail: {
+                            url: userSelected.avatarURL(),
+                        },
+                        timestamp: new Date(),
+                    }
+                });
+            } else {
+                msg.channel.send({
+                    embed: {
+                        color: 0x0099ff,
+                        title: `${userSelected.username}'s Invite Profile`,
+                        fields: [{
+                                name: '✅ Real Invites',
+                                value: `${inviteStats["real"]}`,
+                                inline: true
+                            },
+                            {
+                                name: '❎ Invalid Invites',
+                                value: `${inviteStats["invalid"]}`,
+                                inline: true
+                            },
+                            {
+                                name: '👤 Invited by',
+                                value: invitedBy,
+                                inline: true,
+                            },
+                            {
+                                name: '📒 Invited',
+                                value: pageText[0],
+                                inline: false,
+                            },
+                            {
+                                name: '📃 Page',
+                                value: `1/${pages.length}`,
+                                inline: true
+                            }
+                        ],
+                        thumbnail: {
+                            url: userSelected.avatarURL(),
+                        },
+                        timestamp: new Date(),
+                        footer: {
+                            text: "Click the left and right arrow to browse the list! || Valid for 240 seconds"
+                        }
+                    }
+                }).then(messageSent => {
+                    messageSent.react("⬅️").then(() => {
+                        messageSent.react("➡️");
+                    }).then(() => {
+                        const collector = messageSent.createReactionCollector((reaction, user) => ['⬅️', '➡️'].includes(reaction.emoji.name) && user.id == msg.author.id, {
+                            time: 240000
+                        });
+                        collector.on('collect', async (reaction) => {
+                            reaction.users.remove(msg.author.id);
+                            if (reaction.emoji.name === '⬅️') {
+                                if (pageIndex > 0) {
+                                    pageIndex -= 1;
+                                    messageSent.embeds[0].fields[3]["value"] = pageText[pageIndex];
+                                    messageSent.embeds[0].fields[4]["value"] = `${pageIndex + 1}/${pages.length}`;
+                                    messageSent.edit(messageSent.embeds[0]);
+                                }
+                            } else {
+                                if (pageIndex < pages.length - 1) {
+                                    pageIndex += 1;
+                                    var completedFetch = false;
+                                    if (pageText[pageIndex] == null) {
+                                        var pagesLength = pages[pageIndex].length;
+                                        pageText[pageIndex] = "";
+                                        for (i = 0; i < pages[pageIndex].length; i++) {
+                                            await client.users.fetch(pages[pageIndex][i]["id"]).then(fetchedMember => {
+                                                pageText[pageIndex] += `${fetchedMember}\n**Code:** ${pages[pageIndex][i]["codeUsed"]}`;
+
+                                                if (!pages[pageIndex][i]["valid"]) {
+                                                    pageText[pageIndex] += ` **(Invalid)**\n**(${pages[pageIndex][i]["invalidCause"]})**`;
+                                                }
+                                                pageText[pageIndex] += "\n\n";
+                                            }).catch();
+
+                                            if (pagesLength - 1 == i) {
+                                                completedFetch = true;
+                                            }
+                                        }
+                                    } else {
+                                        completedFetch = true;
+                                    }
+
+                                    until(_ => completedFetch == true).then(() => {
+                                        messageSent.embeds[0].fields[3]["value"] = pageText[pageIndex];
+                                        messageSent.embeds[0].fields[4]["value"] = `${pageIndex + 1}/${pages.length}`;
+                                        messageSent.edit(messageSent.embeds[0]);
+                                    }).catch();
+                                }
+                            }
+                        });
+                        collector.on('end', collected => {
+                            messageSent.embeds[0].footer.text = "Embed expired; reactions no longer work";
+                            messageSent.edit(messageSent.embeds[0]);
+                        });
+
+
+                    }).catch();
+                }).catch();
+            }
+        }
+    }
+
+    function until(conditionFunction) {
+
+        const poll = resolve => {
+            if (conditionFunction()) resolve();
+            else setTimeout(_ => poll(resolve), 400);
+        }
+
+        return new Promise(poll);
+    }
+}
+// VersionCheck:2
