@@ -14,6 +14,7 @@ This is not working just yet, still working on some errors with communites to fi
 - Modify invites: Customize invite data as needed, such as marking them as invalid or adjusting their real count.
 - Automatic messages: Set up automatic messages to be sent when new members join your server.
 - Data management: Easily manage invite data with built-in utility functions.
+- This should work on multiple servers!
 
 ## Installation
 
@@ -27,11 +28,10 @@ This is not working just yet, still working on some errors with communites to fi
 
 Once the bot is running and added to your Discord server, you can use various commands to interact with the invite manager features. Here are some example commands:
 
-- `!invitetop`: Display the top inviters in the server.
-- `!invites <user>`: Check how many invites a specific user has.
-- `!setmessage <message>`: Set a custom welcome message for new members.
-
-Refer to the command documentation for a full list of available commands and their usage.
+- `/invitetop`: Display the top inviters in the server.
+- `/inviteinfo`: Show info about an invite link.
+- `/inviteplayer`: View info about a users invites.
+- `/invitesettings`: Edit this invite settings.
 
 ## Contributing
 
